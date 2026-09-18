@@ -5,6 +5,7 @@ const Train = require('./models/Train');
 const Coach = require('./models/Coach');
 const Seat = require('./models/Seat');
 const Booking = require('./models/Booking');
+const { initiateSTKPush } = require('./utils/mpesa');
 
 const app = express();
 const PORT = 5000;
@@ -78,10 +79,12 @@ app.get('/trains', async (req, res) => {
 
 app.post('/book', async (req, res) => {
   try {
-    const { seatId, passengerName } = req.body;
+    const { seatId, passengerName, phoneNumber, amount } = req.body;
 
-    if (!seatId || !passengerName) {
-      return res.status(400).json({ error: 'seatId and passengerName are required' });
+    if (!seatId || !passengerName || !phoneNumber || !amount) {
+      return res.status(400).json({
+        error: 'seatId, passengerName, phoneNumber, and amount are required',
+      });
     }
 
     const seat = await Seat.findOneAndUpdate(
@@ -103,18 +106,61 @@ app.post('/book', async (req, res) => {
       seat: seat._id,
       passengerName,
       ticketNumber,
-      status: 'confirmed',
+      status: 'pending',
     });
 
-    res.status(201).json({
-      ticketNumber: booking.ticketNumber,
-      passengerName: booking.passengerName,
-      coachNumber: coach.coachNumber,
-      coachClass: coach.coachClass,
-      seatNumber: seat.seatNumber,
-      status: booking.status,
-    });
+    try {
+      const stkResponse = await initiateSTKPush(phoneNumber, amount, ticketNumber);
+      booking.checkoutRequestId = stkResponse.CheckoutRequestID;
+      await booking.save();
+
+      res.status(201).json({
+        message: 'Payment prompt sent. Check your phone to complete payment.',
+        ticketNumber: booking.ticketNumber,
+        status: booking.status,
+      });
+    } catch (stkError) {
+      seat.isBooked = false;
+      await seat.save();
+      await Booking.findByIdAndDelete(booking._id);
+
+      res.status(502).json({
+        error: 'Failed to initiate M-Pesa payment',
+        details: stkError.response?.data,
+      });
+    }
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/mpesa-callback', async (req, res) => {
+  try {
+    const callback = req.body.Body.stkCallback;
+    const checkoutRequestId = callback.CheckoutRequestID;
+    const resultCode = callback.ResultCode;
+
+    const booking = await Booking.findOne({ checkoutRequestId });
+
+    if (!booking) {
+      console.log('No matching booking found for', checkoutRequestId);
+      return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+    }
+
+    if (resultCode === 0) {
+      booking.status = 'confirmed';
+      await booking.save();
+      console.log(`Booking ${booking.ticketNumber} confirmed via M-Pesa`);
+    } else {
+      booking.status = 'cancelled';
+      await booking.save();
+      await Seat.findByIdAndUpdate(booking.seat, { isBooked: false });
+      console.log(`Booking ${booking.ticketNumber} cancelled — payment failed or was cancelled`);
+    }
+
+    res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
+  } catch (err) {
+    console.error('Callback handling error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
