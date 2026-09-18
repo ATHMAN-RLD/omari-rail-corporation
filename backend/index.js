@@ -4,9 +4,12 @@ const mongoose = require('mongoose');
 const Train = require('./models/Train');
 const Coach = require('./models/Coach');
 const Seat = require('./models/Seat');
+const Booking = require('./models/Booking');
 
 const app = express();
 const PORT = 5000;
+
+app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected successfully'))
@@ -73,6 +76,49 @@ app.get('/trains', async (req, res) => {
   }
 });
 
+app.post('/book', async (req, res) => {
+  try {
+    const { seatId, passengerName } = req.body;
+
+    if (!seatId || !passengerName) {
+      return res.status(400).json({ error: 'seatId and passengerName are required' });
+    }
+
+    const seat = await Seat.findOneAndUpdate(
+      { _id: seatId, isBooked: false },
+      { isBooked: true },
+      { new: true }
+    );
+
+    if (!seat) {
+      return res.status(409).json({ error: 'Seat is already booked or does not exist' });
+    }
+
+    const coach = await Coach.findById(seat.coach);
+    const ticketNumber = `OMR-${Date.now()}`;
+
+    const booking = await Booking.create({
+      train: coach.train,
+      coach: coach._id,
+      seat: seat._id,
+      passengerName,
+      ticketNumber,
+      status: 'confirmed',
+    });
+
+    res.status(201).json({
+      ticketNumber: booking.ticketNumber,
+      passengerName: booking.passengerName,
+      coachNumber: coach.coachNumber,
+      coachClass: coach.coachClass,
+      seatNumber: seat.seatNumber,
+      status: booking.status,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-});   
+});  
