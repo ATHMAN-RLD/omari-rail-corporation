@@ -6,6 +6,7 @@ const Coach = require('./models/Coach');
 const Seat = require('./models/Seat');
 const Booking = require('./models/Booking');
 const { initiateSTKPush } = require('./utils/mpesa');
+const { initiatePayment } = require('./utils/flutterwave');
 
 const app = express();
 const PORT = 5000;
@@ -134,6 +135,62 @@ app.post('/book', async (req, res) => {
   }
 });
 
+app.post('/book-card', async (req, res) => {
+  try {
+    const { seatId, passengerName, email, amount } = req.body;
+
+    if (!seatId || !passengerName || !email || !amount) {
+      return res.status(400).json({
+        error: 'seatId, passengerName, email, and amount are required',
+      });
+    }
+
+    const seat = await Seat.findOneAndUpdate(
+      { _id: seatId, isBooked: false },
+      { isBooked: true },
+      { new: true }
+    );
+
+    if (!seat) {
+      return res.status(409).json({ error: 'Seat is already booked or does not exist' });
+    }
+
+    const coach = await Coach.findById(seat.coach);
+    const ticketNumber = `OMR-${Date.now()}`;
+
+    const booking = await Booking.create({
+      train: coach.train,
+      coach: coach._id,
+      seat: seat._id,
+      passengerName,
+      ticketNumber,
+      status: 'pending',
+    });
+
+    try {
+      const paymentResponse = await initiatePayment(email, amount, ticketNumber);
+
+      res.status(201).json({
+        message: 'Redirect the passenger to this link to complete card payment.',
+        checkoutUrl: paymentResponse.data.link,
+        ticketNumber: booking.ticketNumber,
+        status: booking.status,
+      });
+    } catch (flwError) {
+      seat.isBooked = false;
+      await seat.save();
+      await Booking.findByIdAndDelete(booking._id);
+
+      res.status(502).json({
+        error: 'Failed to initiate card payment',
+        details: flwError.response?.data,
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/mpesa-callback', async (req, res) => {
   try {
     const callback = req.body.Body.stkCallback;
@@ -164,6 +221,37 @@ app.post('/mpesa-callback', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+
+app.get('/flutterwave-callback', async (req, res) => {
+  console.log('Flutterwave callback hit! Query params:', req.query);
+  try {
+    const { status, tx_ref } = req.query;
+
+    const booking = await Booking.findOne({ ticketNumber: tx_ref });
+    console.log('Booking found?', booking ? booking.ticketNumber : 'NO MATCH');
+
+    if (!booking) {
+      return res.status(404).send('Booking not found');
+    }
+
+    if (status === 'successful') {
+      booking.status = 'confirmed';
+      await booking.save();
+      console.log(`Booking ${booking.ticketNumber} confirmed via Flutterwave`);
+      res.send(`Payment successful! Your ticket ${booking.ticketNumber} is confirmed.`);
+    } else {
+      booking.status = 'cancelled';
+      await booking.save();
+      await Seat.findByIdAndUpdate(booking.seat, { isBooked: false });
+      console.log(`Booking ${booking.ticketNumber} cancelled — payment failed or was cancelled`);
+      res.send(`Payment was not completed. Your seat has been released.`);
+    }
+  } catch (err) {
+    console.error('Flutterwave callback error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}); 
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
