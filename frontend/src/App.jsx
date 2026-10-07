@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Home from './pages/Home';
 import Booking from './pages/Booking';
 import Confirmation from './pages/Confirmation';
@@ -17,8 +18,9 @@ function App() {
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
       </Routes>
+      <Footer />
     </BrowserRouter>
   );
 }
 
-export default App;  
+export default App; 
