@@ -1,1 +1,37 @@
-@import "tailwindcss";  
+@import "tailwindcss";
+
+@keyframes train-travel {
+  from {
+    left: 0%;
+  }
+  to {
+    left: calc(100% - 1.75rem);
+  }
+}
+
+@keyframes trail-grow {
+  from {
+    width: 0.875rem;
+  }
+  to {
+    width: calc(100% - 0.875rem);
+  }
+}
+
+.moving-train {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  animation: train-travel 6s linear infinite;
+}
+
+.train-trail {
+  animation: trail-grow 6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moving-train,
+  .train-trail {
+    animation: none;
+  }
+} 
