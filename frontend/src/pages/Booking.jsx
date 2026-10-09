@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import SeatPicker from '../components/SeatPicker';
 import bannerImage from '../assets/banner-train.jpg';
 import pageBackground from '../assets/page-background.jpg';
 import logoVideo from '../assets/omari-logo.mp4';
@@ -13,6 +14,8 @@ const destinations = [
 function Booking() {
   const [trains, setTrains] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [openTrainId, setOpenTrainId] = useState(null);
+  const [selectedSeat, setSelectedSeat] = useState(null);
 
   useEffect(() => {
     fetch('http://localhost:5000/trains')
@@ -85,7 +88,7 @@ function Booking() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto py-12 px-4">
+      <div className="max-w-4xl mx-auto pt-12 pb-32 px-4">
         <h2 className="text-2xl font-bold text-center text-white drop-shadow-lg mb-6">
           Available Trains
         </h2>
@@ -120,9 +123,46 @@ function Booking() {
                 <p className="text-gray-600">{train.arrivalStation}</p>
               </div>
             </div>
+
+            <div className="mt-5 flex justify-end">
+              <button
+                onClick={() =>
+                  setOpenTrainId(openTrainId === train._id ? null : train._id)
+                }
+                className="bg-red-700 hover:bg-red-800 text-white px-5 py-2 rounded-lg font-semibold"
+              >
+                {openTrainId === train._id ? 'Hide Seats' : 'Select Seats'}
+              </button>
+            </div>
+
+            {openTrainId === train._id && (
+              <SeatPicker
+                train={train}
+                selectedSeat={selectedSeat}
+                onSelect={setSelectedSeat}
+              />
+            )}
           </div>
         ))}
       </div>
+
+      {selectedSeat && (
+        <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t-4 border-orange-500 shadow-2xl px-6 py-4 flex justify-between items-center">
+          <div>
+            <p className="font-bold">
+              {selectedSeat.train.name}: {selectedSeat.train.departureStation} →{' '}
+              {selectedSeat.train.arrivalStation}
+            </p>
+            <p className="text-gray-600">
+              Coach {selectedSeat.coach.coachNumber} · Seat {selectedSeat.seat.seatNumber} ·{' '}
+              {selectedSeat.coach.coachClass} Class
+            </p>
+          </div>
+          <button className="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg font-semibold">
+            Continue to Payment
+          </button>
+        </div>
+      )}
     </div>
   );
 }
