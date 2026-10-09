@@ -22,6 +22,10 @@ const trainSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  arrivalTime: {
+    type: String,
+    required: true,
+  },
 });
 
-module.exports = mongoose.model('Train', trainSchema);  
+module.exports = mongoose.model('Train', trainSchema); 

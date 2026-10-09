@@ -59,6 +59,72 @@ app.get('/seed-coaches-seats', async (req, res) => {
   }
 });
 
+app.get('/seed-more-trains', async (req, res) => {
+  try {
+    const trainsData = [
+      {
+        name: 'Lwanda Express',
+        trainNumber: 'NR002',
+        departureStation: 'Nairobi',
+        arrivalStation: 'Kisumu',
+        departureTime: '09:00',
+        arrivalTime: '16:00',
+      },
+      {
+        name: 'Sabaki Express',
+        trainNumber: 'NR003',
+        departureStation: 'Nairobi',
+        arrivalStation: 'Malindi',
+        departureTime: '07:30',
+        arrivalTime: '18:00',
+      },
+      {
+        name: 'Tsavo Express',
+        trainNumber: 'NR004',
+        departureStation: 'Nairobi',
+        arrivalStation: 'Voi',
+        departureTime: '10:00',
+        arrivalTime: '14:30',
+      },
+    ];
+
+    const createdTrains = [];
+
+    for (const trainInfo of trainsData) {
+      const train = await Train.create(trainInfo);
+
+      const coachA = await Coach.create({
+        train: train._id,
+        coachNumber: 'A1',
+        coachClass: 'Economy',
+      });
+
+      const coachB = await Coach.create({
+        train: train._id,
+        coachNumber: 'B1',
+        coachClass: 'First',
+      });
+
+      await Seat.create([
+        { coach: coachA._id, seatNumber: '1' },
+        { coach: coachA._id, seatNumber: '2' },
+        { coach: coachA._id, seatNumber: '3' },
+      ]);
+
+      await Seat.create([
+        { coach: coachB._id, seatNumber: '1' },
+        { coach: coachB._id, seatNumber: '2' },
+      ]);
+
+      createdTrains.push(train);
+    }
+
+    res.json({ message: 'Created 3 new trains with coaches and seats', trains: createdTrains });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}); 
+
 app.get('/trains', async (req, res) => {
   try {
     const trains = await Train.find();
