@@ -11,9 +11,23 @@ const destinations = [
   { name: 'Voi', img: 'https://placehold.co/400x300/1a1a1a/ffffff?text=Voi' },
 ];
 
+function formatDate(isoDate) {
+  return new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 function Booking() {
   const [trains, setTrains] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [date, setDate] = useState('');
+  const [searched, setSearched] = useState(false);
+  const [formError, setFormError] = useState('');
   const [openTrainId, setOpenTrainId] = useState(null);
   const [selectedSeat, setSelectedSeat] = useState(null);
 
@@ -32,6 +46,49 @@ function Booking() {
 
   if (loading) {
     return <p className="text-center py-16 text-xl">Loading trains...</p>;
+  }
+
+  const today = new Date().toLocaleDateString('en-CA');
+  const fromOptions = [...new Set(trains.map((t) => t.departureStation))];
+  const toOptions = [
+    ...new Set(
+      trains
+        .filter((t) => !from || t.departureStation === from)
+        .map((t) => t.arrivalStation)
+    ),
+  ];
+  const visibleTrains = searched
+    ? trains.filter((t) => t.departureStation === from && t.arrivalStation === to)
+    : trains;
+
+  function handleFromChange(e) {
+    setFrom(e.target.value);
+    setTo('');
+    setSearched(false);
+  }
+
+  function handleSearch(e) {
+    e.preventDefault();
+    if (!from || !to || !date) {
+      setFormError(
+        'Please choose where you are travelling from, where to, and your departure date.'
+      );
+      return;
+    }
+    setFormError('');
+    setOpenTrainId(null);
+    setSelectedSeat(null);
+    setSearched(true);
+  }
+
+  function handleClear() {
+    setFrom('');
+    setTo('');
+    setDate('');
+    setFormError('');
+    setSearched(false);
+    setOpenTrainId(null);
+    setSelectedSeat(null);
   }
 
   return (
@@ -67,13 +124,98 @@ function Booking() {
 
       <div className="h-2 bg-orange-500"></div>
 
+      <div className="max-w-5xl mx-auto px-4 pt-10">
+        <form
+          onSubmit={handleSearch}
+          className="bg-white rounded-xl shadow-xl p-6 border-t-4 border-red-700"
+        >
+          <h2 className="text-xl font-bold text-gray-800 mb-4">
+            Omari Rail Corporation: Online Booking
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <label className="block">
+              <span className="block text-xs font-bold uppercase tracking-wide text-gray-600 mb-1">
+                From
+              </span>
+              <select
+                value={from}
+                onChange={handleFromChange}
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 bg-white"
+              >
+                <option value="">Select...</option>
+                {fromOptions.map((station) => (
+                  <option key={station} value={station}>
+                    {station}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-bold uppercase tracking-wide text-gray-600 mb-1">
+                To
+              </span>
+              <select
+                value={to}
+                onChange={(e) => {
+                  setTo(e.target.value);
+                  setSearched(false);
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 bg-white"
+              >
+                <option value="">Select...</option>
+                {toOptions.map((station) => (
+                  <option key={station} value={station}>
+                    {station}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="block text-xs font-bold uppercase tracking-wide text-gray-600 mb-1">
+                Departure Date
+              </span>
+              <input
+                type="date"
+                min={today}
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  setSearched(false);
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-3 bg-white"
+              />
+            </label>
+
+            <button
+              type="submit"
+              className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-6 py-3 rounded-lg"
+            >
+              Search Trains
+            </button>
+          </div>
+
+          {formError && <p className="mt-3 text-red-700 font-semibold">{formError}</p>}
+        </form>
+      </div>
+
       <div className="max-w-5xl mx-auto pt-12 px-4">
         <h2 className="text-2xl font-bold text-center text-white drop-shadow-lg mb-6">
           Popular Destinations
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {destinations.map((place) => (
-            <div key={place.name} className="relative rounded-xl overflow-hidden shadow-md">
+            <button
+              type="button"
+              key={place.name}
+              onClick={() => {
+                setTo(place.name);
+                setSearched(false);
+              }}
+              className="relative rounded-xl overflow-hidden shadow-md text-left hover:scale-105 transition"
+            >
               <img src={place.img} alt={place.name} className="w-full h-36 object-cover" />
               <div
                 className="absolute inset-x-0 bottom-0 p-3"
@@ -83,16 +225,37 @@ function Booking() {
               >
                 <p className="text-white font-semibold">{place.name}</p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto pt-12 pb-32 px-4">
-        <h2 className="text-2xl font-bold text-center text-white drop-shadow-lg mb-6">
-          Available Trains
-        </h2>
-        {trains.map((train) => (
+        <div className="mb-6 text-center text-white drop-shadow-lg">
+          <h2 className="text-2xl font-bold">
+            {searched ? `${from} → ${to}` : 'Available Trains'}
+          </h2>
+          {searched && (
+            <>
+              <p className="mt-1">{formatDate(date)}</p>
+              <button
+                type="button"
+                onClick={handleClear}
+                className="mt-2 underline hover:text-orange-300"
+              >
+                Show all trains
+              </button>
+            </>
+          )}
+        </div>
+
+        {visibleTrains.length === 0 && (
+          <p className="text-center text-white text-lg drop-shadow-lg">
+            No trains run on this route yet. Try another destination.
+          </p>
+        )}
+
+        {visibleTrains.map((train) => (
           <div
             key={train._id}
             className="bg-white rounded-xl shadow-md border-l-8 border-red-700 p-6 mb-6"
@@ -147,24 +310,29 @@ function Booking() {
       </div>
 
       {selectedSeat && (
-        <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t-4 border-orange-500 shadow-2xl px-6 py-4 flex justify-between items-center">
+        <div className="fixed bottom-0 inset-x-0 z-50 bg-white border-t-4 border-orange-500 shadow-2xl px-6 py-4 flex justify-between items-center gap-4">
           <div>
             <p className="font-bold">
               {selectedSeat.train.name}: {selectedSeat.train.departureStation} →{' '}
               {selectedSeat.train.arrivalStation}
             </p>
             <p className="text-gray-600">
-              Coach {selectedSeat.coach.coachNumber} · Seat {selectedSeat.seat.seatNumber} ·{' '}
-              {selectedSeat.coach.coachClass} Class
+              {date && `${formatDate(date)} · `}Coach {selectedSeat.coach.coachNumber} ·
+              Seat {selectedSeat.seat.seatNumber} · {selectedSeat.coach.coachClass} Class
             </p>
           </div>
-          <button className="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg font-semibold">
-            Continue to Payment
-          </button>
+          <div className="flex items-center gap-4">
+            <p className="text-2xl font-bold text-red-700">
+              KES {selectedSeat.coach.fare}
+            </p>
+            <button className="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg font-semibold">
+              Continue to Payment
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-export default Booking; 
+export default Booking;
