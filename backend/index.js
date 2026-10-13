@@ -1,4 +1,5 @@
 require('dotenv').config();
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
@@ -7,10 +8,14 @@ const Coach = require('./models/Coach');
 const Seat = require('./models/Seat');
 const Booking = require('./models/Booking');
 const { initiateSTKPush } = require('./utils/mpesa');
-const { initiatePayment } = require('./utils/flutterwave');
+const { initiatePayment, verifyTransaction } = require('./utils/flutterwave');
 
 const app = express();
 const PORT = 5000;
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+// Sandbox test fares in KES. Put real prices here before launch.
+const FARES = { Economy: 1, First: 2 };
 
 app.use(cors());
 app.use(express.json());
@@ -19,111 +24,23 @@ mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB connected successfully'))
   .catch((err) => console.error('MongoDB connection error:', err));
 
+function generateTicketNumber() {
+  return `OMR-${crypto.randomBytes(4).toString('hex').toUpperCase()}`;
+}
+
+function normalizePhone(input) {
+  const digits = String(input).replace(/\D/g, '');
+  if (digits.startsWith('254') && digits.length === 12) return digits;
+  if (digits.startsWith('0') && digits.length === 10) return `254${digits.slice(1)}`;
+  if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length === 9) {
+    return `254${digits}`;
+  }
+  return null;
+}
+
 app.get('/', (req, res) => {
   res.send('Omari Rail Corporation API is running');
 });
-
-app.get('/seed-coaches-seats', async (req, res) => {
-  try {
-    const train = await Train.findOne({ trainNumber: 'NR001' });
-    if (!train) {
-      return res.status(404).json({ error: 'Train not found. Run /seed-train first.' });
-    }
-
-    const coach1 = await Coach.create({
-      train: train._id,
-      coachNumber: 'A1',
-      coachClass: 'Economy',
-    });
-
-    const coach2 = await Coach.create({
-      train: train._id,
-      coachNumber: 'B1',
-      coachClass: 'First',
-    });
-
-    const seatsForCoach1 = await Seat.create([
-      { coach: coach1._id, seatNumber: '1' },
-      { coach: coach1._id, seatNumber: '2' },
-      { coach: coach1._id, seatNumber: '3' },
-    ]);
-
-    const seatsForCoach2 = await Seat.create([
-      { coach: coach2._id, seatNumber: '1' },
-      { coach: coach2._id, seatNumber: '2' },
-    ]);
-
-    res.json({ train, coaches: [coach1, coach2], seats: [...seatsForCoach1, ...seatsForCoach2] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/seed-more-trains', async (req, res) => {
-  try {
-    const trainsData = [
-      {
-        name: 'Lwanda Express',
-        trainNumber: 'NR002',
-        departureStation: 'Nairobi',
-        arrivalStation: 'Kisumu',
-        departureTime: '09:00',
-        arrivalTime: '16:00',
-      },
-      {
-        name: 'Sabaki Express',
-        trainNumber: 'NR003',
-        departureStation: 'Nairobi',
-        arrivalStation: 'Malindi',
-        departureTime: '07:30',
-        arrivalTime: '18:00',
-      },
-      {
-        name: 'Tsavo Express',
-        trainNumber: 'NR004',
-        departureStation: 'Nairobi',
-        arrivalStation: 'Voi',
-        departureTime: '10:00',
-        arrivalTime: '14:30',
-      },
-    ];
-
-    const createdTrains = [];
-
-    for (const trainInfo of trainsData) {
-      const train = await Train.create(trainInfo);
-
-      const coachA = await Coach.create({
-        train: train._id,
-        coachNumber: 'A1',
-        coachClass: 'Economy',
-      });
-
-      const coachB = await Coach.create({
-        train: train._id,
-        coachNumber: 'B1',
-        coachClass: 'First',
-      });
-
-      await Seat.create([
-        { coach: coachA._id, seatNumber: '1' },
-        { coach: coachA._id, seatNumber: '2' },
-        { coach: coachA._id, seatNumber: '3' },
-      ]);
-
-      await Seat.create([
-        { coach: coachB._id, seatNumber: '1' },
-        { coach: coachB._id, seatNumber: '2' },
-      ]);
-
-      createdTrains.push(train);
-    }
-
-    res.json({ message: 'Created 3 new trains with coaches and seats', trains: createdTrains });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}); 
 
 app.get('/trains', async (req, res) => {
   try {
@@ -134,7 +51,11 @@ app.get('/trains', async (req, res) => {
         const coachesWithSeats = await Promise.all(
           coaches.map(async (coach) => {
             const seats = await Seat.find({ coach: coach._id });
-            return { ...coach.toObject(), seats };
+            return {
+              ...coach.toObject(),
+              fare: FARES[coach.coachClass],
+              seats,
+            };
           })
         );
         return { ...train.toObject(), coaches: coachesWithSeats };
@@ -146,20 +67,64 @@ app.get('/trains', async (req, res) => {
   }
 });
 
+app.get('/booking/:ticketNumber', async (req, res) => {
+  try {
+    const booking = await Booking.findOne({ ticketNumber: req.params.ticketNumber })
+      .populate('train')
+      .populate('coach')
+      .populate('seat');
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    res.json({
+      ticketNumber: booking.ticketNumber,
+      status: booking.status,
+      passengerName: booking.passengerName,
+      amount: FARES[booking.coach.coachClass],
+      train: {
+        name: booking.train.name,
+        trainNumber: booking.train.trainNumber,
+        departureStation: booking.train.departureStation,
+        arrivalStation: booking.train.arrivalStation,
+        departureTime: booking.train.departureTime,
+        arrivalTime: booking.train.arrivalTime,
+      },
+      coachNumber: booking.coach.coachNumber,
+      coachClass: booking.coach.coachClass,
+      seatNumber: booking.seat.seatNumber,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/book', async (req, res) => {
   try {
-    const { seatId, passengerName, phoneNumber, amount } = req.body;
+    const { seatId, passengerName, phoneNumber } = req.body;
 
-    if (!seatId || !passengerName || !phoneNumber || !amount) {
+    if (!seatId || !passengerName || !phoneNumber) {
       return res.status(400).json({
-        error: 'seatId, passengerName, phoneNumber, and amount are required',
+        error: 'seatId, passengerName, and phoneNumber are required',
+      });
+    }
+
+    if (!mongoose.isValidObjectId(seatId)) {
+      return res.status(400).json({ error: 'Invalid seatId' });
+    }
+
+    const phone = normalizePhone(phoneNumber);
+    if (!phone) {
+      return res.status(400).json({
+        error: 'Enter a valid Safaricom number, e.g. 0712345678',
       });
     }
 
     const seat = await Seat.findOneAndUpdate(
       { _id: seatId, isBooked: false },
       { isBooked: true },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!seat) {
@@ -167,7 +132,8 @@ app.post('/book', async (req, res) => {
     }
 
     const coach = await Coach.findById(seat.coach);
-    const ticketNumber = `OMR-${Date.now()}`;
+    const amount = FARES[coach.coachClass];
+    const ticketNumber = generateTicketNumber();
 
     const booking = await Booking.create({
       train: coach.train,
@@ -179,13 +145,14 @@ app.post('/book', async (req, res) => {
     });
 
     try {
-      const stkResponse = await initiateSTKPush(phoneNumber, amount, ticketNumber);
+      const stkResponse = await initiateSTKPush(phone, amount, ticketNumber);
       booking.checkoutRequestId = stkResponse.CheckoutRequestID;
       await booking.save();
 
       res.status(201).json({
         message: 'Payment prompt sent. Check your phone to complete payment.',
         ticketNumber: booking.ticketNumber,
+        amount,
         status: booking.status,
       });
     } catch (stkError) {
@@ -205,18 +172,22 @@ app.post('/book', async (req, res) => {
 
 app.post('/book-card', async (req, res) => {
   try {
-    const { seatId, passengerName, email, amount } = req.body;
+    const { seatId, passengerName, email } = req.body;
 
-    if (!seatId || !passengerName || !email || !amount) {
+    if (!seatId || !passengerName || !email) {
       return res.status(400).json({
-        error: 'seatId, passengerName, email, and amount are required',
+        error: 'seatId, passengerName, and email are required',
       });
+    }
+
+    if (!mongoose.isValidObjectId(seatId)) {
+      return res.status(400).json({ error: 'Invalid seatId' });
     }
 
     const seat = await Seat.findOneAndUpdate(
       { _id: seatId, isBooked: false },
       { isBooked: true },
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     if (!seat) {
@@ -224,7 +195,8 @@ app.post('/book-card', async (req, res) => {
     }
 
     const coach = await Coach.findById(seat.coach);
-    const ticketNumber = `OMR-${Date.now()}`;
+    const amount = FARES[coach.coachClass];
+    const ticketNumber = generateTicketNumber();
 
     const booking = await Booking.create({
       train: coach.train,
@@ -242,9 +214,14 @@ app.post('/book-card', async (req, res) => {
         message: 'Redirect the passenger to this link to complete card payment.',
         checkoutUrl: paymentResponse.data.link,
         ticketNumber: booking.ticketNumber,
+        amount,
         status: booking.status,
       });
     } catch (flwError) {
+      console.error('Flutterwave error message:', flwError.message);
+      console.error('Flutterwave error code:', flwError.code);
+      console.error('Flutterwave response data:', flwError.response?.data);
+
       seat.isBooked = false;
       await seat.save();
       await Booking.findByIdAndDelete(booking._id);
@@ -267,8 +244,8 @@ app.post('/mpesa-callback', async (req, res) => {
 
     const booking = await Booking.findOne({ checkoutRequestId });
 
-    if (!booking) {
-      console.log('No matching booking found for', checkoutRequestId);
+    if (!booking || booking.status !== 'pending') {
+      console.log('Ignoring callback for', checkoutRequestId);
       return res.json({ ResultCode: 0, ResultDesc: 'Accepted' });
     }
 
@@ -290,37 +267,52 @@ app.post('/mpesa-callback', async (req, res) => {
   }
 });
 
-
 app.get('/flutterwave-callback', async (req, res) => {
-  console.log('Flutterwave callback hit! Query params:', req.query);
-  try {
-    const { status, tx_ref } = req.query;
+  const { status, tx_ref, transaction_id } = req.query;
+  const ticketPage = `${FRONTEND_URL}/confirmation?ticket=${encodeURIComponent(tx_ref || '')}`;
 
+  try {
     const booking = await Booking.findOne({ ticketNumber: tx_ref });
-    console.log('Booking found?', booking ? booking.ticketNumber : 'NO MATCH');
 
     if (!booking) {
-      return res.status(404).send('Booking not found');
+      return res.redirect(`${FRONTEND_URL}/confirmation`);
     }
 
-    if (status === 'successful') {
+    if (booking.status !== 'pending') {
+      return res.redirect(ticketPage);
+    }
+
+    let paid = false;
+
+    if (status === 'successful' && transaction_id) {
+      const result = await verifyTransaction(transaction_id);
+      const coach = await Coach.findById(booking.coach);
+
+      paid =
+        result.data.status === 'successful' &&
+        result.data.tx_ref === booking.ticketNumber &&
+        result.data.currency === 'KES' &&
+        Number(result.data.amount) >= FARES[coach.coachClass];
+    }
+
+    if (paid) {
       booking.status = 'confirmed';
       await booking.save();
       console.log(`Booking ${booking.ticketNumber} confirmed via Flutterwave`);
-      res.send(`Payment successful! Your ticket ${booking.ticketNumber} is confirmed.`);
     } else {
       booking.status = 'cancelled';
       await booking.save();
       await Seat.findByIdAndUpdate(booking.seat, { isBooked: false });
-      console.log(`Booking ${booking.ticketNumber} cancelled — payment failed or was cancelled`);
-      res.send(`Payment was not completed. Your seat has been released.`);
+      console.log(`Booking ${booking.ticketNumber} cancelled — payment not verified`);
     }
+
+    res.redirect(ticketPage);
   } catch (err) {
     console.error('Flutterwave callback error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.redirect(ticketPage);
   }
-}); 
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-});  
+}); 

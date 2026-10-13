@@ -26,4 +26,17 @@ async function initiatePayment(email, amount, txRef) {
   return response.data;
 }
 
-module.exports = { initiatePayment };  
+async function verifyTransaction(transactionId) {
+  const response = await axios.get(
+    `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.FLW_SECRET_KEY}`,
+      },
+    }
+  );
+
+  return response.data;
+}
+
+module.exports = { initiatePayment, verifyTransaction }; 
