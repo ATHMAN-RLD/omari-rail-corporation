@@ -83,6 +83,9 @@ app.get('/booking/:ticketNumber', async (req, res) => {
       status: booking.status,
       passengerName: booking.passengerName,
       amount: FARES[booking.coach.coachClass],
+      paymentMethod: booking.paymentMethod,
+      paymentReference: booking.paymentReference,
+      paidAt: booking.paidAt,
       train: {
         name: booking.train.name,
         trainNumber: booking.train.trainNumber,
@@ -142,6 +145,7 @@ app.post('/book', async (req, res) => {
       passengerName,
       ticketNumber,
       status: 'pending',
+      paymentMethod: 'mpesa',
     });
 
     try {
@@ -205,6 +209,7 @@ app.post('/book-card', async (req, res) => {
       passengerName,
       ticketNumber,
       status: 'pending',
+      paymentMethod: 'card',
     });
 
     try {
@@ -250,7 +255,12 @@ app.post('/mpesa-callback', async (req, res) => {
     }
 
     if (resultCode === 0) {
+      const items = callback.CallbackMetadata?.Item || [];
+      const receipt = items.find((item) => item.Name === 'MpesaReceiptNumber')?.Value;
+
       booking.status = 'confirmed';
+      booking.paidAt = new Date();
+      if (receipt) booking.paymentReference = String(receipt);
       await booking.save();
       console.log(`Booking ${booking.ticketNumber} confirmed via M-Pesa`);
     } else {
@@ -283,6 +293,7 @@ app.get('/flutterwave-callback', async (req, res) => {
     }
 
     let paid = false;
+    let reference = '';
 
     if (status === 'successful' && transaction_id) {
       const result = await verifyTransaction(transaction_id);
@@ -293,10 +304,14 @@ app.get('/flutterwave-callback', async (req, res) => {
         result.data.tx_ref === booking.ticketNumber &&
         result.data.currency === 'KES' &&
         Number(result.data.amount) >= FARES[coach.coachClass];
+
+      reference = result.data.flw_ref || String(transaction_id);
     }
 
     if (paid) {
       booking.status = 'confirmed';
+      booking.paidAt = new Date();
+      booking.paymentReference = reference;
       await booking.save();
       console.log(`Booking ${booking.ticketNumber} confirmed via Flutterwave`);
     } else {

@@ -33,6 +33,16 @@ const bookingSchema = new mongoose.Schema({
   checkoutRequestId: {
     type: String,
   },
+  paymentMethod: {
+    type: String,
+    enum: ['mpesa', 'card'],
+  },
+  paymentReference: {
+    type: String,
+  },
+  paidAt: {
+    type: Date,
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Booking', bookingSchema);  
