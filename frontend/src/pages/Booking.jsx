@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import SeatPicker from '../components/SeatPicker';
+import PaymentModal from '../components/PaymentModal';
 import bannerImage from '../assets/banner-train.jpg';
 import pageBackground from '../assets/page-background.jpg';
 import logoVideo from '../assets/omari-logo.mp4';
@@ -30,6 +31,7 @@ function Booking() {
   const [formError, setFormError] = useState('');
   const [openTrainId, setOpenTrainId] = useState(null);
   const [selectedSeat, setSelectedSeat] = useState(null);
+  const [showPayment, setShowPayment] = useState(false);
 
   useEffect(() => {
     fetch('http://localhost:5000/trains')
@@ -325,14 +327,25 @@ function Booking() {
             <p className="text-2xl font-bold text-red-700">
               KES {selectedSeat.coach.fare}
             </p>
-            <button className="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg font-semibold">
+            <button
+              onClick={() => setShowPayment(true)}
+              className="bg-red-700 hover:bg-red-800 text-white px-6 py-3 rounded-lg font-semibold"
+            >
               Continue to Payment
             </button>
           </div>
         </div>
       )}
+
+      {showPayment && selectedSeat && (
+        <PaymentModal
+          selection={selectedSeat}
+          travelDate={date ? formatDate(date) : ''}
+          onClose={() => setShowPayment(false)}
+        />
+      )}
     </div>
   );
 }
 
-export default Booking;
+export default Booking; 

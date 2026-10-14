@@ -34,4 +34,26 @@
   .train-trail {
     animation: none;
   }
+}
+
+@media print {
+  nav,
+  footer,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: white;
+  }
+
+  .ticket {
+    box-shadow: none;
+    border: 1px solid #d1d5db;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
 } 
