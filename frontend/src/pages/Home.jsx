@@ -1,6 +1,24 @@
 import { Link } from 'react-router-dom';
 import heroImage from '../assets/train-image.jpg';
-import { featureCards, sectionImages } from '../images';
+import { featureCards, sectionImages, stepImages } from '../images';
+
+const steps = [
+  {
+    title: 'Fast Booking',
+    text: 'Reserve your seat online in under a minute.',
+    img: stepImages.fastBooking,
+  },
+  {
+    title: 'Secure Payment',
+    text: 'Pay with M-Pesa or your Visa/Mastercard.',
+    img: stepImages.securePayment,
+  },
+  {
+    title: 'Real Tickets',
+    text: 'Get your coach, seat, and class instantly.',
+    img: stepImages.realTickets,
+  },
+];
 
 function Home() {
   return (
@@ -65,24 +83,21 @@ function Home() {
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto py-16 px-4 text-center">
+      <div className="max-w-6xl mx-auto py-16 px-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div>
-            <h3 className="font-semibold text-xl mb-2">Fast Booking</h3>
-            <p className="text-gray-600">Reserve your seat online in under a minute.</p>
-          </div>
-          <div>
-            <h3 className="font-semibold text-xl mb-2">Secure Payment</h3>
-            <p className="text-gray-600">Pay with M-Pesa or your Visa/Mastercard.</p>
-          </div>
-          <div>
-            <h3 className="font-semibold text-xl mb-2">Real Tickets</h3>
-            <p className="text-gray-600">Get your coach, seat, and class instantly.</p>
-          </div>
+          {steps.map((step) => (
+            <div key={step.title} className="bg-white rounded-2xl overflow-hidden shadow-lg">
+              <img src={step.img} alt={step.title} className="w-full h-52 object-cover" />
+              <div className="p-6 text-center">
+                <h3 className="font-semibold text-xl mb-2">{step.title}</h3>
+                <p className="text-gray-600">{step.text}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-export default Home; 
+export default Home;  

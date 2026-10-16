@@ -170,8 +170,19 @@ function Confirmation() {
     );
   }
 
+  const firstName = booking.passengerName.trim().split(' ')[0];
+
   return (
     <div className="min-h-[60vh] bg-gray-100 py-10 px-4">
+      <div className="no-print max-w-3xl mx-auto mb-6 bg-green-50 border border-green-200 text-green-800 rounded-xl px-6 py-4">
+        <p className="text-xl font-bold">Payment received. Thank you, {firstName}!</p>
+        <p className="mt-1">
+          Your seat is confirmed. Keep your ticket number{' '}
+          <span className="font-mono font-bold">{booking.ticketNumber}</span> safe,
+          because you will need it at the station.
+        </p>
+      </div>
+
       <div className="ticket max-w-3xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden">
         <div className="bg-red-700 text-white px-6 py-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -249,8 +260,31 @@ function Confirmation() {
           Book Another Ticket
         </Link>
       </div>
+
+      <div className="no-print max-w-3xl mx-auto mt-8 bg-white rounded-xl shadow p-6">
+        <h2 className="text-xl font-bold mb-3">Before you travel</h2>
+        <ul className="list-disc pl-5 space-y-2 text-gray-700">
+          <li>Arrive at the station at least 45 minutes before departure.</li>
+          <li>
+            Carry the ID or passport you used when booking, together with this ticket,
+            printed or on your phone.
+          </li>
+          <li>Show the QR code or your ticket number at the boarding gate.</li>
+          <li>
+            Your ticket is valid only for the coach and seat shown and cannot be
+            transferred.
+          </li>
+        </ul>
+        <p className="mt-4 text-gray-700">
+          Questions about your journey?{' '}
+          <Link to="/contact" className="text-red-700 font-semibold underline">
+            Contact us
+          </Link>
+          .
+        </p>
+      </div>
     </div>
   );
 }
 
-export default Confirmation; 
+export default Confirmation;  
