@@ -1,16 +1,10 @@
 import { useState, useEffect } from 'react';
 import SeatPicker from '../components/SeatPicker';
 import PaymentModal from '../components/PaymentModal';
+import { destinations } from '../images';
 import bannerImage from '../assets/banner-train.jpg';
 import pageBackground from '../assets/page-background.jpg';
 import logoVideo from '../assets/omari-logo.mp4';
-
-const destinations = [
-  { name: 'Mombasa', img: 'https://placehold.co/400x300/aa0000/ffffff?text=Mombasa' },
-  { name: 'Kisumu', img: 'https://placehold.co/400x300/166534/ffffff?text=Kisumu' },
-  { name: 'Malindi', img: 'https://placehold.co/400x300/7f1d1d/ffffff?text=Malindi' },
-  { name: 'Voi', img: 'https://placehold.co/400x300/1a1a1a/ffffff?text=Voi' },
-];
 
 function formatDate(isoDate) {
   return new Date(`${isoDate}T00:00:00`).toLocaleDateString('en-GB', {
@@ -66,6 +60,15 @@ function Booking() {
   function handleFromChange(e) {
     setFrom(e.target.value);
     setTo('');
+    setSearched(false);
+  }
+
+  function handleTileClick(name) {
+    if (fromOptions.includes(name)) {
+      setFrom(name);
+    } else {
+      setTo(name);
+    }
     setSearched(false);
   }
 
@@ -204,28 +207,29 @@ function Booking() {
       </div>
 
       <div className="max-w-5xl mx-auto pt-12 px-4">
-        <h2 className="text-2xl font-bold text-center text-white drop-shadow-lg mb-6">
+        <h2 className="text-3xl font-bold text-center text-white drop-shadow-lg mb-8">
           Popular Destinations
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="flex flex-wrap justify-center gap-4">
           {destinations.map((place) => (
             <button
               type="button"
               key={place.name}
-              onClick={() => {
-                setTo(place.name);
-                setSearched(false);
-              }}
-              className="relative rounded-xl overflow-hidden shadow-md text-left hover:scale-105 transition"
+              onClick={() => handleTileClick(place.name)}
+              className="relative w-full sm:w-[calc(50%-0.5rem)] lg:w-[calc(33.333%-0.7rem)] rounded-2xl overflow-hidden border-4 border-white shadow-2xl text-left hover:scale-105 transition"
             >
-              <img src={place.img} alt={place.name} className="w-full h-36 object-cover" />
+              <img
+                src={place.img}
+                alt={place.name}
+                className="w-full h-60 sm:h-64 lg:h-72 object-cover"
+              />
               <div
-                className="absolute inset-x-0 bottom-0 p-3"
+                className="absolute inset-x-0 bottom-0 p-4"
                 style={{
-                  backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.7), transparent)',
+                  backgroundImage: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
                 }}
               >
-                <p className="text-white font-semibold">{place.name}</p>
+                <p className="text-white text-xl font-bold">{place.name}</p>
               </div>
             </button>
           ))}
@@ -348,4 +352,4 @@ function Booking() {
   );
 }
 
-export default Booking; 
+export default Booking;

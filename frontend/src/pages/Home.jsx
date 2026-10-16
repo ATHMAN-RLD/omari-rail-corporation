@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import heroImage from '../assets/train-image.jpg';
+import { featureCards, sectionImages } from '../images';
 
 function Home() {
   return (
@@ -25,12 +26,7 @@ function Home() {
       <div className="max-w-6xl mx-auto py-16 px-4">
         <h2 className="text-3xl font-bold text-center mb-10">Why Ride With Us</h2>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[
-            { title: 'Route Map', img: 'https://placehold.co/400x300/aa0000/ffffff?text=Route+Map' },
-            { title: 'Onboard Comfort', img: 'https://placehold.co/400x300/aa0000/ffffff?text=Onboard+Comfort' },
-            { title: 'Stations', img: 'https://placehold.co/400x300/aa0000/ffffff?text=Stations' },
-            { title: 'Fares & Schedules', img: 'https://placehold.co/400x300/aa0000/ffffff?text=Fares' },
-          ].map((item) => (
+          {featureCards.map((item) => (
             <div key={item.title} className="rounded-lg overflow-hidden shadow-md">
               <img src={item.img} alt={item.title} className="w-full h-40 object-cover" />
               <p className="text-center font-semibold py-3">{item.title}</p>
@@ -48,17 +44,17 @@ function Home() {
           </p>
         </div>
         <img
-          src="https://placehold.co/600x400/aa0000/ffffff?text=Onboard+Staff"
+          src={sectionImages.onboardStaff}
           alt="Onboard staff"
-          className="rounded-lg shadow-md"
+          className="rounded-lg shadow-md w-full h-72 object-cover"
         />
       </div>
 
       <div className="max-w-6xl mx-auto py-16 px-4 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
         <img
-          src="https://placehold.co/600x400/aa0000/ffffff?text=Scenic+Route"
+          src={sectionImages.scenicRoute}
           alt="Scenic route"
-          className="rounded-lg shadow-md md:order-1 order-2"
+          className="rounded-lg shadow-md w-full h-72 object-cover md:order-1 order-2"
         />
         <div className="md:order-2 order-1">
           <h2 className="text-2xl font-bold mb-3">Magnificent Scenery</h2>
@@ -89,4 +85,4 @@ function Home() {
   );
 }
 
-export default Home;  
+export default Home; 
