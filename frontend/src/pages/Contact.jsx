@@ -27,7 +27,7 @@ const faqs = [
   },
   {
     question: 'Which payment methods do you accept?',
-    answer: 'You can pay with M-Pesa or with a Visa or Mastercard card.',
+   answer: 'You can pay with M-Pesa. Card payments are coming soon.',
   },
   {
     question: 'I closed the page. How do I find my ticket?',

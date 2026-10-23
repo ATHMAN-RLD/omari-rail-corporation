@@ -8,11 +8,9 @@ const Coach = require('./models/Coach');
 const Seat = require('./models/Seat');
 const Booking = require('./models/Booking');
 const { initiateSTKPush } = require('./utils/mpesa');
-const { initiatePayment, verifyTransaction } = require('./utils/flutterwave');
 
 const app = express();
 const PORT = 5000;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Sandbox test fares in KES. Put real prices here before launch.
 const FARES = { Economy: 1, First: 2 };
@@ -174,73 +172,6 @@ app.post('/book', async (req, res) => {
   }
 });
 
-app.post('/book-card', async (req, res) => {
-  try {
-    const { seatId, passengerName, email } = req.body;
-
-    if (!seatId || !passengerName || !email) {
-      return res.status(400).json({
-        error: 'seatId, passengerName, and email are required',
-      });
-    }
-
-    if (!mongoose.isValidObjectId(seatId)) {
-      return res.status(400).json({ error: 'Invalid seatId' });
-    }
-
-    const seat = await Seat.findOneAndUpdate(
-      { _id: seatId, isBooked: false },
-      { isBooked: true },
-      { returnDocument: 'after' }
-    );
-
-    if (!seat) {
-      return res.status(409).json({ error: 'Seat is already booked or does not exist' });
-    }
-
-    const coach = await Coach.findById(seat.coach);
-    const amount = FARES[coach.coachClass];
-    const ticketNumber = generateTicketNumber();
-
-    const booking = await Booking.create({
-      train: coach.train,
-      coach: coach._id,
-      seat: seat._id,
-      passengerName,
-      ticketNumber,
-      status: 'pending',
-      paymentMethod: 'card',
-    });
-
-    try {
-      const paymentResponse = await initiatePayment(email, amount, ticketNumber);
-
-      res.status(201).json({
-        message: 'Redirect the passenger to this link to complete card payment.',
-        checkoutUrl: paymentResponse.data.link,
-        ticketNumber: booking.ticketNumber,
-        amount,
-        status: booking.status,
-      });
-    } catch (flwError) {
-      console.error('Flutterwave error message:', flwError.message);
-      console.error('Flutterwave error code:', flwError.code);
-      console.error('Flutterwave response data:', flwError.response?.data);
-
-      seat.isBooked = false;
-      await seat.save();
-      await Booking.findByIdAndDelete(booking._id);
-
-      res.status(502).json({
-        error: 'Failed to initiate card payment',
-        details: flwError.response?.data,
-      });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 app.post('/mpesa-callback', async (req, res) => {
   try {
     const callback = req.body.Body.stkCallback;
@@ -277,57 +208,6 @@ app.post('/mpesa-callback', async (req, res) => {
   }
 });
 
-app.get('/flutterwave-callback', async (req, res) => {
-  const { status, tx_ref, transaction_id } = req.query;
-  const ticketPage = `${FRONTEND_URL}/confirmation?ticket=${encodeURIComponent(tx_ref || '')}`;
-
-  try {
-    const booking = await Booking.findOne({ ticketNumber: tx_ref });
-
-    if (!booking) {
-      return res.redirect(`${FRONTEND_URL}/confirmation`);
-    }
-
-    if (booking.status !== 'pending') {
-      return res.redirect(ticketPage);
-    }
-
-    let paid = false;
-    let reference = '';
-
-    if (status === 'successful' && transaction_id) {
-      const result = await verifyTransaction(transaction_id);
-      const coach = await Coach.findById(booking.coach);
-
-      paid =
-        result.data.status === 'successful' &&
-        result.data.tx_ref === booking.ticketNumber &&
-        result.data.currency === 'KES' &&
-        Number(result.data.amount) >= FARES[coach.coachClass];
-
-      reference = result.data.flw_ref || String(transaction_id);
-    }
-
-    if (paid) {
-      booking.status = 'confirmed';
-      booking.paidAt = new Date();
-      booking.paymentReference = reference;
-      await booking.save();
-      console.log(`Booking ${booking.ticketNumber} confirmed via Flutterwave`);
-    } else {
-      booking.status = 'cancelled';
-      await booking.save();
-      await Seat.findByIdAndUpdate(booking.seat, { isBooked: false });
-      console.log(`Booking ${booking.ticketNumber} cancelled — payment not verified`);
-    }
-
-    res.redirect(ticketPage);
-  } catch (err) {
-    console.error('Flutterwave callback error:', err.message);
-    res.redirect(ticketPage);
-  }
-});
-
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
-}); 
+});

@@ -10,7 +10,7 @@ const steps = [
   },
   {
     title: 'Secure Payment',
-    text: 'Pay with M-Pesa or your Visa/Mastercard.',
+    text: 'Pay securely with M-Pesa.',
     img: stepImages.securePayment,
   },
   {
